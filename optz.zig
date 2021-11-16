@@ -45,7 +45,7 @@ pub fn parseIter(
                             param = try allocator.dupe(u8, arg[i + 2 ..]);
                         } else {
                             param = (try peek(allocator, context)) orelse {
-                                return error.MissingArgument;
+                                return error.MissingParameter;
                             };
                             advance(context);
                         }
