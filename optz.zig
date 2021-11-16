@@ -73,6 +73,15 @@ pub fn parseIter(
             }
         }
     }
+
+    // Dupe all default strings
+    inline for (std.meta.fields(Flags)) |field| {
+        if (field.field_type != []const u8) continue;
+        if (@field(flags, field.name).ptr == field.default_value.?.ptr) {
+            @field(flags, field.name) = try allocator.dupe(u8, @field(flags, field.name));
+        }
+    }
+
     return flags;
 }
 
@@ -117,6 +126,7 @@ test "string flag - default" {
         struct { s: []const u8 = "default value" },
         &.{},
     );
+    defer std.testing.allocator.free(flags.s);
     try expectEqualStrings(flags.s, "default value");
 }
 
