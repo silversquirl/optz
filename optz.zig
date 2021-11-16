@@ -6,19 +6,21 @@ pub fn parse(allocator: *Allocator, comptime Flags: type, args: *std.process.Arg
     std.debug.assert(args.skip());
     return parseIter(allocator, Flags, args, argPeek, argAdvance);
 }
-fn argPeek(allocator: *Allocator, args: *std.process.ArgIterator) Allocator.Error!?[]const u8 {
+fn argPeek(allocator: *Allocator, args: *std.process.ArgIterator) NextError!?[]const u8 {
     var argsCopy = args.*;
-    return try argsCopy.next(allocator);
+    return try argsCopy.next(allocator) orelse return null;
 }
 fn argAdvance(args: *std.process.ArgIterator) void {
     std.debug.assert(args.skip());
 }
 
+pub const NextError = std.process.ArgIterator.NextError;
+
 pub fn parseIter(
     allocator: *Allocator,
     comptime Flags: type,
     context: anytype,
-    peek: fn (*Allocator, @TypeOf(context)) Allocator.Error!?[]const u8,
+    peek: fn (*Allocator, @TypeOf(context)) NextError!?[]const u8,
     advance: fn (@TypeOf(context)) void,
 ) !Flags {
     var flags: Flags = .{};
