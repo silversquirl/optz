@@ -1,29 +1,32 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 // Parse flags from an ArgIterator according to the provided Flags struct.
-pub fn parse(comptime Flags: type, args: *std.process.ArgIterator) !Flags {
+pub fn parse(allocator: *Allocator, comptime Flags: type, args: *std.process.ArgIterator) !Flags {
     std.debug.assert(args.skip());
-    return parseIter(Flags, args, argPeek, argNext);
+    return parseIter(allocator, Flags, args, argPeek, argAdvance);
 }
-fn argPeek(args: *std.process.ArgIterator) ?[]const u8 {
+fn argPeek(allocator: *Allocator, args: *std.process.ArgIterator) Allocator.Error!?[]const u8 {
     var argsCopy = args.*;
-    return argsCopy.nextPosix() orelse null;
+    return try argsCopy.next(allocator);
 }
-fn argNext(args: *std.process.ArgIterator) ?[]const u8 {
-    return std.process.ArgIterator.nextPosix(args) orelse null;
+fn argAdvance(args: *std.process.ArgIterator) void {
+    std.debug.assert(args.skip());
 }
 
 pub fn parseIter(
+    allocator: *Allocator,
     comptime Flags: type,
     context: anytype,
-    peek: fn (@TypeOf(context)) ?[]const u8,
-    next: fn (@TypeOf(context)) ?[]const u8,
+    peek: fn (*Allocator, @TypeOf(context)) Allocator.Error!?[]const u8,
+    advance: fn (@TypeOf(context)) void,
 ) !Flags {
     var flags: Flags = .{};
 
-    while (peek(context)) |arg| {
+    while (try peek(allocator, context)) |arg| {
+        defer allocator.free(arg);
         if (arg.len < 2 or !std.mem.startsWith(u8, arg, "-")) break;
-        std.debug.assert(arg.ptr == (next(context) orelse unreachable).ptr);
+        advance(context);
         if (std.mem.eql(u8, arg, "--")) break;
 
         arg_flags: for (arg[1..]) |opt, i| {
@@ -37,19 +40,26 @@ pub fn parseIter(
                     if (T == bool) {
                         @field(flags, field.name) = true;
                     } else {
-                        const flag_arg = if (i + 2 < arg.len)
-                            arg[i + 2 ..]
-                        else
-                            next(context) orelse return error.MissingArgument;
+                        var param: []const u8 = undefined;
+                        if (i + 2 < arg.len) {
+                            param = try allocator.dupe(u8, arg[i + 2 ..]);
+                        } else {
+                            param = (try peek(allocator, context)) orelse {
+                                return error.MissingArgument;
+                            };
+                            advance(context);
+                        }
+                        errdefer allocator.free(param);
 
                         if (T == []const u8) {
-                            @field(flags, field.name) = flag_arg;
+                            @field(flags, field.name) = param;
                         } else {
                             @field(flags, field.name) = switch (@typeInfo(T)) {
-                                .Int => try std.fmt.parseInt(T, flag_arg, 10),
-                                .Float => try std.fmt.parseFloat(T, flag_arg),
+                                .Int => try std.fmt.parseInt(T, param, 10),
+                                .Float => try std.fmt.parseFloat(T, param),
                                 else => @compileError("Unsupported flag type '" ++ @typeName(field.field_type) ++ "'"),
                             };
+                            allocator.free(param);
                         }
 
                         // Ensure we don't try to parse any more flags from this arg
@@ -72,19 +82,14 @@ fn Unwrap(comptime T: type) type {
 
 fn parseTest(comptime Flags: type, args: []const []const u8) !Flags {
     var argsV = args;
-    return parseIter(Flags, &argsV, testPeek, testNext);
+    return parseIter(std.testing.allocator, Flags, &argsV, testPeek, testAdvance);
 }
-fn testPeek(args: *[]const []const u8) ?[]const u8 {
+fn testPeek(allocator: *Allocator, args: *[]const []const u8) Allocator.Error!?[]const u8 {
     if (args.*.len == 0) return null;
-    return args.*[0];
+    return try allocator.dupe(u8, args.*[0]);
 }
-fn testNext(args: *[]const []const u8) ?[]const u8 {
-    if (testPeek(args)) |arg| {
-        args.* = args.*[1..];
-        return arg;
-    } else {
-        return null;
-    }
+fn testAdvance(args: *[]const []const u8) void {
+    args.* = args.*[1..];
 }
 
 const expect = std.testing.expect;
@@ -120,6 +125,7 @@ test "string flag - separated" {
         struct { s: []const u8 = "default value" },
         &.{ "-s", "separate value" },
     );
+    defer std.testing.allocator.free(flags.s);
     try expectEqualStrings(flags.s, "separate value");
 }
 
@@ -128,6 +134,7 @@ test "string flag - combined" {
         struct { s: []const u8 = "default value" },
         &.{"-scombined value"},
     );
+    defer std.testing.allocator.free(flags.s);
     try expectEqualStrings(flags.s, "combined value");
 }
 
