@@ -2,11 +2,11 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 // Parse flags from an ArgIterator according to the provided Flags struct.
-pub fn parse(allocator: *Allocator, comptime Flags: type, args: *std.process.ArgIterator) !Flags {
+pub fn parse(allocator: Allocator, comptime Flags: type, args: *std.process.ArgIterator) !Flags {
     std.debug.assert(args.skip());
     return parseIter(allocator, Flags, args, argPeek, argAdvance);
 }
-fn argPeek(allocator: *Allocator, args: *std.process.ArgIterator) NextError!?[]const u8 {
+fn argPeek(allocator: Allocator, args: *std.process.ArgIterator) NextError!?[]const u8 {
     var argsCopy = args.*;
     return try argsCopy.next(allocator) orelse return null;
 }
@@ -17,10 +17,10 @@ fn argAdvance(args: *std.process.ArgIterator) void {
 pub const NextError = std.process.ArgIterator.NextError;
 
 pub fn parseIter(
-    allocator: *Allocator,
+    allocator: Allocator,
     comptime Flags: type,
     context: anytype,
-    peek: fn (*Allocator, @TypeOf(context)) NextError!?[]const u8,
+    peek: fn (Allocator, @TypeOf(context)) NextError!?[]const u8,
     advance: fn (@TypeOf(context)) void,
 ) !Flags {
     var flags: Flags = .{};
@@ -95,7 +95,7 @@ fn parseTest(comptime Flags: type, args: []const []const u8) !Flags {
     var argsV = args;
     return parseIter(std.testing.allocator, Flags, &argsV, testPeek, testAdvance);
 }
-fn testPeek(allocator: *Allocator, args: *[]const []const u8) Allocator.Error!?[]const u8 {
+fn testPeek(allocator: Allocator, args: *[]const []const u8) Allocator.Error!?[]const u8 {
     if (args.*.len == 0) return null;
     return try allocator.dupe(u8, args.*[0]);
 }
