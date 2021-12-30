@@ -8,7 +8,7 @@ pub fn parse(allocator: Allocator, comptime Flags: type, args: *std.process.ArgI
 }
 fn argPeek(allocator: Allocator, args: *std.process.ArgIterator) NextError!?[]const u8 {
     var argsCopy = args.*;
-    return try argsCopy.next(allocator) orelse return null;
+    return try argsCopy.next(allocator);
 }
 fn argAdvance(args: *std.process.ArgIterator) void {
     std.debug.assert(args.skip());
