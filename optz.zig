@@ -1,11 +1,17 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-// Parse flags from an ArgIterator according to the provided Flags struct.
+// Parse flags from an ArgIterator according to the provided Flags struct. Skips the first arg
 pub fn parse(allocator: Allocator, comptime Flags: type, args: *std.process.ArgIterator) !Flags {
     std.debug.assert(args.skip());
+    return parseRaw(allocator, Flags, args);
+}
+
+// Parse flags from an ArgIterator according to the provided Flags struct
+pub fn parseRaw(allocator: Allocator, comptime Flags: type, args: *std.process.ArgIterator) !Flags {
     return parseIter(allocator, Flags, args, argPeek, argAdvance);
 }
+
 fn argPeek(allocator: Allocator, args: *std.process.ArgIterator) NextError!?[]const u8 {
     var argsCopy = args.*;
     return try argsCopy.next(allocator);
