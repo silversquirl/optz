@@ -12,27 +12,24 @@ pub fn parseRaw(allocator: Allocator, comptime Flags: type, args: *std.process.A
     return parseIter(allocator, Flags, args, argPeek, argAdvance);
 }
 
-fn argPeek(allocator: Allocator, args: *std.process.ArgIterator) NextError!?[]const u8 {
+fn argPeek(args: *std.process.ArgIterator) ?[]const u8 {
     var argsCopy = args.*;
-    return try argsCopy.next(allocator);
+    return argsCopy.next();
 }
 fn argAdvance(args: *std.process.ArgIterator) void {
     std.debug.assert(args.skip());
 }
 
-pub const NextError = std.process.ArgIterator.NextError;
-
 pub fn parseIter(
     allocator: Allocator,
     comptime Flags: type,
     context: anytype,
-    peek: fn (Allocator, @TypeOf(context)) NextError!?[]const u8,
+    peek: fn (@TypeOf(context)) ?[]const u8,
     advance: fn (@TypeOf(context)) void,
 ) !Flags {
     var flags: Flags = .{};
 
-    while (try peek(allocator, context)) |arg| {
-        defer allocator.free(arg);
+    while (peek(context)) |arg| {
         if (arg.len < 2 or !std.mem.startsWith(u8, arg, "-")) break;
         advance(context);
         if (std.mem.eql(u8, arg, "--")) break;
@@ -50,15 +47,13 @@ pub fn parseIter(
                     } else {
                         var param: []const u8 = undefined;
                         if (i + 2 < arg.len) {
-                            param = try allocator.dupe(u8, arg[i + 2 ..]);
+                            param = arg[i + 2 ..];
                         } else {
-                            param = (try peek(allocator, context)) orelse {
+                            param = peek(context) orelse {
                                 return error.MissingParameter;
                             };
                             advance(context);
                         }
-                        errdefer allocator.free(param);
-
                         if (T == []const u8) {
                             @field(flags, field.name) = param;
                         } else {
@@ -67,7 +62,6 @@ pub fn parseIter(
                                 .Float => try std.fmt.parseFloat(T, param),
                                 else => @compileError("Unsupported flag type '" ++ @typeName(field.field_type) ++ "'"),
                             };
-                            allocator.free(param);
                         }
 
                         // Ensure we don't try to parse any more flags from this arg
@@ -82,11 +76,18 @@ pub fn parseIter(
         }
     }
 
-    // Dupe all default strings
-    inline for (std.meta.fields(Flags)) |field| {
-        if (field.field_type != []const u8) continue;
-        if (@field(flags, field.name).ptr == field.default_value.?.ptr) {
-            @field(flags, field.name) = try allocator.dupe(u8, @field(flags, field.name));
+    // Dupe all strings
+    inline for (std.meta.fields(Flags)) |field, i| {
+        if (field.field_type == []const u8) {
+            @field(flags, field.name) = allocator.dupe(u8, @field(flags, field.name)) catch |err| {
+                // Free all previously allocated strings
+                inline for (std.meta.fields(Flags)[0..i]) |field_| {
+                    if (field_.field_type == []const u8) {
+                        allocator.free(@field(flags, field_.name));
+                    }
+                }
+                return err;
+            };
         }
     }
 
@@ -101,9 +102,9 @@ fn parseTest(comptime Flags: type, args: []const []const u8) !Flags {
     var argsV = args;
     return parseIter(std.testing.allocator, Flags, &argsV, testPeek, testAdvance);
 }
-fn testPeek(allocator: Allocator, args: *[]const []const u8) Allocator.Error!?[]const u8 {
+fn testPeek(args: *[]const []const u8) ?[]const u8 {
     if (args.*.len == 0) return null;
-    return try allocator.dupe(u8, args.*[0]);
+    return args.*[0];
 }
 fn testAdvance(args: *[]const []const u8) void {
     args.* = args.*[1..];

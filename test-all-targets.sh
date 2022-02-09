@@ -15,19 +15,16 @@ test_with_qemu() {
 	test_with_runner "qemu-$1-static" "$2"
 }
 test_targets() {
-	grep -v '^#\|^$' | while read -r triple; do
-		echo "$triple" | (
-			IFS=- read -r arch os
-			case "$os" in
-				linux)
-					test_with_qemu "$arch" "$arch-$os-gnu"
-					test_with_qemu "$arch" "$arch-$os-musl"
-					;;
-				windows)
-					test_with_runner wine "$arch-$os"
-					;;
-			esac
-		)
+	grep -v '^#\|^$' | while IFS=- read -r arch os; do
+		case "$os" in
+			linux)
+				test_with_qemu "$arch" "$arch-$os-gnu"
+				test_with_qemu "$arch" "$arch-$os-musl"
+				;;
+			windows)
+				test_with_runner wine "$arch-$os"
+				;;
+		esac
 	done
 }
 
