@@ -14,7 +14,7 @@ pub fn parseRaw(allocator: Allocator, comptime Flags: type, args: *std.process.A
 
 fn argPeek(args: *std.process.ArgIterator) ?[]const u8 {
     var argsCopy = args.*;
-    return argsCopy.next();
+    return argsCopy.next() orelse null;
 }
 fn argAdvance(args: *std.process.ArgIterator) void {
     std.debug.assert(args.skip());
@@ -113,6 +113,12 @@ fn testAdvance(args: *[]const []const u8) void {
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
+
+test "arg iterator" {
+    var args = try std.process.argsWithAllocator(std.testing.allocator);
+    defer args.deinit();
+    _ = try parse(std.testing.allocator, struct {}, &args);
+}
 
 test "bool flag - default" {
     const flags = try parseTest(
