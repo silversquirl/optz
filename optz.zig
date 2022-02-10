@@ -77,13 +77,16 @@ pub fn parseIter(
     }
 
     // Dupe all strings
-    inline for (std.meta.fields(Flags)) |field, i| {
+    const fields = std.meta.fields(Flags);
+    inline for (fields) |field, i| {
         if (field.field_type == []const u8) {
             @field(flags, field.name) = allocator.dupe(u8, @field(flags, field.name)) catch |err| {
                 // Free all previously allocated strings
-                inline for (std.meta.fields(Flags)[0..i]) |field_| {
-                    if (field_.field_type == []const u8) {
-                        allocator.free(@field(flags, field_.name));
+                comptime var j = i;
+                inline while (j > 0) {
+                    j -= 1;
+                    if (fields[j].field_type == []const u8) {
+                        allocator.free(@field(flags, fields[j].name));
                     }
                 }
                 return err;
@@ -209,4 +212,17 @@ test "float flag - combined" {
         &.{"-s0.36"},
     );
     try expectEqual(flags.s, 0.36);
+}
+
+test "bool and string flags" {
+    const flags = try parseTest(
+        struct {
+            b: bool = false,
+            s: []const u8 = "",
+        },
+        &.{ "-s", "foo" },
+    );
+    defer std.testing.allocator.free(flags.s);
+    try expectEqual(flags.b, false);
+    try expectEqualStrings(flags.s, "foo");
 }
