@@ -20,13 +20,21 @@ fn argAdvance(args: *std.process.ArgIterator) void {
     std.debug.assert(args.skip());
 }
 
+const ParseError = error{
+    InvalidFlag,
+    MissingParameter,
+    InvalidCharacter,
+    Overflow,
+    OutOfMemory,
+};
+
 pub fn parseIter(
     allocator: Allocator,
     comptime Flags: type,
     context: anytype,
     peek: fn (@TypeOf(context)) ?[]const u8,
     advance: fn (@TypeOf(context)) void,
-) !Flags {
+) ParseError!Flags {
     var flags: Flags = .{};
 
     while (peek(context)) |arg| {
@@ -41,7 +49,7 @@ pub fn parseIter(
                 }
 
                 if (opt == field.name[0]) {
-                    const T = Unwrap(field.field_type);
+                    const T = Unwrap(field.type);
                     if (T == bool) {
                         @field(flags, field.name) = true;
                     } else {
@@ -60,7 +68,7 @@ pub fn parseIter(
                             @field(flags, field.name) = switch (@typeInfo(T)) {
                                 .Int => try std.fmt.parseInt(T, param, 10),
                                 .Float => try std.fmt.parseFloat(T, param),
-                                else => @compileError("Unsupported flag type '" ++ @typeName(field.field_type) ++ "'"),
+                                else => @compileError("Unsupported flag type '" ++ @typeName(field.type) ++ "'"),
                             };
                         }
 
@@ -79,13 +87,13 @@ pub fn parseIter(
     // Dupe all strings
     const fields = std.meta.fields(Flags);
     inline for (fields) |field, i| {
-        if (field.field_type == []const u8) {
+        if (field.type == []const u8) {
             @field(flags, field.name) = allocator.dupe(u8, @field(flags, field.name)) catch |err| {
                 // Free all previously allocated strings
                 comptime var j = i;
                 inline while (j > 0) {
                     j -= 1;
-                    if (fields[j].field_type == []const u8) {
+                    if (fields[j].type == []const u8) {
                         allocator.free(@field(flags, fields[j].name));
                     }
                 }
