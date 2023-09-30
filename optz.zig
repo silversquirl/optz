@@ -42,7 +42,7 @@ pub fn parseIter(
         advance(context);
         if (std.mem.eql(u8, arg, "--")) break;
 
-        arg_flags: for (arg[1..]) |opt, i| {
+        arg_flags: for (arg[1..], 0..) |opt, i| {
             inline for (std.meta.fields(Flags)) |field| {
                 if (field.name.len != 1) {
                     @compileError("An argument name must be a single character");
@@ -86,7 +86,7 @@ pub fn parseIter(
 
     // Dupe all strings
     const fields = std.meta.fields(Flags);
-    inline for (fields) |field, i| {
+    inline for (fields, 0..) |field, i| {
         if (field.type == []const u8) {
             @field(flags, field.name) = allocator.dupe(u8, @field(flags, field.name)) catch |err| {
                 // Free all previously allocated strings
