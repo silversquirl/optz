@@ -63,7 +63,7 @@ pub fn parseIter(
                             advance(context);
                         }
                         if (T == []const u8) {
-                            @field(flags, field.name) = param;
+                            @field(flags, field.name) = try allocator.dupe(u8, param);
                         } else {
                             @field(flags, field.name) = switch (@typeInfo(T)) {
                                 .Int => try std.fmt.parseInt(T, param, 10),
@@ -223,14 +223,29 @@ test "float flag - combined" {
 }
 
 test "bool and string flags" {
-    const flags = try parseTest(
-        struct {
-            b: bool = false,
-            s: []const u8 = "",
-        },
-        &.{ "-s", "foo" },
-    );
-    defer std.testing.allocator.free(flags.s);
-    try expectEqual(flags.b, false);
-    try expectEqualStrings(flags.s, "foo");
+    {
+        const flags = try parseTest(
+            struct {
+                b: bool = false,
+                s: []const u8 = "",
+            },
+            &.{ "-s", "foo" },
+        );
+        defer std.testing.allocator.free(flags.s);
+        try expectEqual(flags.b, false);
+        try expectEqualStrings(flags.s, "foo");
+    }
+
+    {
+        const flags = try parseTest(
+            struct {
+                b: bool = false,
+                s: []const u8 = "",
+            },
+            &.{ "-b", "-s", "bar" },
+        );
+        defer std.testing.allocator.free(flags.s);
+        try expectEqual(flags.b, true);
+        try expectEqualStrings(flags.s, "bar");
+    }
 }
