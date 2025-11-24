@@ -66,8 +66,8 @@ pub fn parseIter(
                             @field(flags, field.name) = try allocator.dupe(u8, param);
                         } else {
                             @field(flags, field.name) = switch (@typeInfo(T)) {
-                                .Int => try std.fmt.parseInt(T, param, 10),
-                                .Float => try std.fmt.parseFloat(T, param),
+                                .int => try std.fmt.parseInt(T, param, 10),
+                                .float => try std.fmt.parseFloat(T, param),
                                 else => @compileError("Unsupported flag type '" ++ @typeName(field.type) ++ "'"),
                             };
                         }
@@ -106,7 +106,7 @@ pub fn parseIter(
 }
 
 fn Unwrap(comptime T: type) type {
-    return if (@typeInfo(T) == .Optional) std.meta.Child(T) else T;
+    return if (@typeInfo(T) == .optional) std.meta.Child(T) else T;
 }
 
 fn parseTest(comptime Flags: type, args: []const []const u8) !Flags {

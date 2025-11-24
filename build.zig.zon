@@ -1,5 +1,6 @@
 .{
-    .name = "optz",
+    .name = .optz,
+    .fingerprint = 0xed7374c91ba9441b,
     .version = "0.1.0",
     .paths = .{
         "LICENSE",
